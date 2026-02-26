@@ -1,32 +1,26 @@
 import sys
 from pathlib import Path
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-
 import joblib
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, Optional
-
 from src.config_loader import load_config
-
+from src.website_feature_extraction import FeatureExtractor
 
 # =========================================================
 # PATHS + LOAD ARTIFACTS (config-driven)
 # =========================================================
 
 CONFIG = load_config()
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_DIR = PROJECT_ROOT / CONFIG["artifacts"]["directory"]
-
 SCALER_PATH = ARTIFACTS_DIR / CONFIG["artifacts"]["scaler_filename"]
 XGB_MODEL_PATH = ARTIFACTS_DIR / CONFIG["artifacts"]["xgb_model_filename"]
 ANN_MODEL_PATH = ARTIFACTS_DIR / CONFIG["artifacts"]["ann_model_filename"]
-
 
 def _safe_load(path: Path):
     if not path.exists():
@@ -36,11 +30,9 @@ def _safe_load(path: Path):
         )
     return joblib.load(path)
 
-
 SCALER = _safe_load(SCALER_PATH)
 XGB_MODEL = _safe_load(XGB_MODEL_PATH)
 ANN_MODEL = _safe_load(ANN_MODEL_PATH)
-
 
 # =========================================================
 # HELPERS
@@ -48,7 +40,6 @@ ANN_MODEL = _safe_load(ANN_MODEL_PATH)
 
 def decode_label(pred: int) -> str:
     return "Legit Website" if int(pred) == 1 else "Phishing Website"
-
 
 def _get_expected_columns_from_scaler() -> Optional[list]:
     """
@@ -60,9 +51,7 @@ def _get_expected_columns_from_scaler() -> Optional[list]:
         return list(SCALER.feature_names_in_)
     return None
 
-
 EXPECTED_COLUMNS = _get_expected_columns_from_scaler()
-
 
 def validate_and_build_df(input_dict: Dict[str, Any]) -> pd.DataFrame:
     """
@@ -94,7 +83,6 @@ def validate_and_build_df(input_dict: Dict[str, Any]) -> pd.DataFrame:
         df = df[EXPECTED_COLUMNS]
 
     return df
-
 
 def preprocess_input(input_dict: Dict[str, Any]) -> np.ndarray:
     """
@@ -143,7 +131,6 @@ def predict(
         "legit_probability": legit_prob
     }
 
-
 # =========================================================
 # CLI DEMO
 # =========================================================
@@ -153,41 +140,51 @@ if __name__ == "__main__":
     # Use same feature names as training CSV (excluding target column).
     # Values should be numeric (mostly -1/0/1 for this dataset).
 
-    sample_input = {
-        "having_IP_Address": 0,
-        "URL_Length": 1,
-        "Shortining_Service": 0,
-        "having_At_Symbol": 0,
-        "double_slash_redirecting": 1,
-        "Prefix_Suffix": 0,
-        "having_Sub_Domain": 1,
-        "SSLfinal_State": 1,
-        "Domain_registeration_length": 1,
-        "Favicon": 1,
-        "port": 0,
-        "HTTPS_token": 0,
-        "Request_URL": 1,
-        "URL_of_Anchor": 1,
-        "Links_in_tags": 1,
-        "SFH": 1,
-        "Submitting_to_email": 0,
-        "Abnormal_URL": 0,
-        "Redirect": 1,
-        "on_mouseover": 0,
-        "RightClick": 1,
-        "popUpWidnow": 0,
-        "Iframe": 0,
-        "age_of_domain": 1,
-        "DNSRecord": 1,
-        "web_traffic": 1,
-        "Page_Rank": 1,
-        "Google_Index": 1,
-        "Links_pointing_to_page": 1,
-        "Statistical_report": 0
-    }
+    # sample_input = {
+    #     "having_IP_Address": 0,
+    #     "URL_Length": 1,
+    #     "Shortining_Service": 0,
+    #     "having_At_Symbol": 0,
+    #     "double_slash_redirecting": 1,
+    #     "Prefix_Suffix": 0,
+    #     "having_Sub_Domain": 1,
+    #     "SSLfinal_State": 1,
+    #     "Domain_registeration_length": 1,
+    #     "Favicon": 1,
+    #     "port": 0,
+    #     "HTTPS_token": 0,
+    #     "Request_URL": 1,
+    #     "URL_of_Anchor": 1,
+    #     "Links_in_tags": 1,
+    #     "SFH": 1,
+    #     "Submitting_to_email": 0,
+    #     "Abnormal_URL": 0,
+    #     "Redirect": 1,
+    #     "on_mouseover": 0,
+    #     "RightClick": 1,
+    #     "popUpWidnow": 0,
+    #     "Iframe": 0,
+    #     "age_of_domain": 1,
+    #     "DNSRecord": 1,
+    #     "web_traffic": 1,
+    #     "Page_Rank": 1,
+    #     "Google_Index": 1,
+    #     "Links_pointing_to_page": 1,
+    #     "Statistical_report": 0
+    # }
+    
+
+    extractor = FeatureExtractor()
+    #url = "https://secure-paypal-login-verification.xyz/login"
+    #url = "http://google.com.secure-login.verify-account.example.com/"
+    url = "http://google.com/"
+    features = extractor.extract(url)
+    # print("\nExtracted Features:")
+    # for k, v in features.items():
+    #     print(f"  {k}: {v}")
 
     print("\n--- XGBoost Prediction ---")
-    print(predict(sample_input, model_type="xgboost"))
+    print(predict(features, model_type="xgboost"))
 
     print("\n--- ANN (MLPClassifier) Prediction ---")
-    print(predict(sample_input, model_type="ann"))
+    print(predict(features, model_type="ann"))
